@@ -1,0 +1,92 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: glowlab-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: glowlab
+      POSTGRES_USER: glowlab
+      POSTGRES_PASSWORD: glowlab
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U glowlab -d glowlab"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  gateway:
+    container_name: glowlab-gateway
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  ai:
+    container_name: glowlab-ai
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - path: ./.env
+        required: false
+    environment:
+      INTERNAL_AI_TOKEN: ${INTERNAL_AI_TOKEN:?set INTERNAL_AI_TOKEN in .env}
+      MEDIA_DIR: /app/media
+      MEDIA_BASE_URL: /media
+    volumes:
+      - ai_media:/app/media
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')\" || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  api:
+    container_name: glowlab-api
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - path: ./.env
+        required: false
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://glowlab:glowlab@postgres:5432/glowlab?schema=public
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?}
+      AI_SERVICE_URL: http://ai:8000
+      INTERNAL_AI_TOKEN: ${INTERNAL_AI_TOKEN:?}
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
+    depends_on:
+      ai:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:4000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
+
+volumes:
+  postgres_data:
+  ai_media:

@@ -1,0 +1,131 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RecommendationStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum TryOnStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id               String              @id @default(cuid())
+  email            String              @unique
+  passwordHash     String
+  firstName        String?
+  lastName         String?
+  skinTone         String?
+  skinType         String?
+  preferredStyles  String[]            @default([])
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  refreshTokens    RefreshToken[]
+  recommendations  Recommendation[]
+  tryOnSessions    MakeupTryOnSession[]
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Product {
+  id                  String               @id
+  sku                 String?              @unique
+  name                String
+  description         String?
+  brand               String?
+  category            String
+  subcategory         String?
+  shade               String?
+  priceEur            Float
+  currency            String               @default("EUR")
+  tags                Json
+  imageUrls           Json
+  stockHint           String?
+  discountPercent     Int?
+  aiPitch             String?
+  isActive            Boolean              @default(true)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  recommendationItems RecommendationItem[]
+  tryOnSessions       MakeupTryOnSession[]
+}
+
+model Recommendation {
+  id            String               @id @default(cuid())
+  userId        String?
+  user          User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  requestedLook String?
+  cartProductIds String[]            @default([])
+  status        RecommendationStatus @default(COMPLETED)
+  source        String               @default("ai")
+  createdAt     DateTime             @default(now())
+  items         RecommendationItem[]
+
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+model RecommendationItem {
+  id                String         @id @default(cuid())
+  recommendationId  String
+  productId         String
+  rank              Int
+  score             Float?
+  reason            String?
+  createdAt         DateTime       @default(now())
+  recommendation    Recommendation @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+  product           Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([recommendationId, rank])
+  @@index([productId])
+}
+
+model MakeupTryOnSession {
+  id             String       @id @default(cuid())
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId      String?
+  product        Product?     @relation(fields: [productId], references: [id], onDelete: SetNull)
+  lookId         String
+  sourceImageUrl String?
+  previewUrl     String?
+  maskUrls       Json?
+  latencyMs      Int?
+  note           String?
+  status         TryOnStatus  @default(COMPLETED)
+  createdAt      DateTime     @default(now())
+  assets         TryOnAsset[]
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([productId])
+}
+
+model TryOnAsset {
+  id          String            @id @default(cuid())
+  sessionId   String
+  kind        String
+  url         String
+  metadata    Json?
+  createdAt   DateTime          @default(now())
+  session     MakeupTryOnSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+}
