@@ -22,9 +22,24 @@ Compilar con API de producción:
 flutter build apk --dart-define=API_BASE=https://api.tu-dominio.com
 ```
 
-### Web Vite (raíz)
+### Frontend web Vite (`frontend/`)
 
 ```bash
+cd frontend
+npm install
+npm run dev
+```
+
+API del frontend (archivo `.env`):
+
+```bash
+VITE_API_BASE_URL=http://localhost:8080
+```
+
+### Backend API Node (`backend/api/`)
+
+```bash
+cd backend/api
 npm install
 npm run dev
 ```
@@ -34,6 +49,6 @@ npm run dev
 | Ruta | Contenido |
 |------|-----------|
 | `mobile/` | App Flutter |
-| `backend/` | API Gateway (Nginx) + API Express + servicio FastAPI (IA) — ver [`backend/README.md`](./backend/README.md) |
-| `src/` | TypeScript + estilos (Vite) |
+| `backend/` | Backend (gateway/API/IA), independiente del frontend — ver [`backend/README.md`](./backend/README.md) |
+| `frontend/` | Frontend web (Vite + TypeScript) |
 | `docs/` | Documentación técnica |
