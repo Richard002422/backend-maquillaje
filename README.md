@@ -52,3 +52,4 @@ npm run dev
 | `backend/` | Backend (gateway/API/IA), independiente del frontend — ver [`backend/README.md`](./backend/README.md) |
 | `frontend/` | Frontend web (Vite + TypeScript) |
 | `docs/` | Documentación técnica |
+# app-maquillaje-frontend
