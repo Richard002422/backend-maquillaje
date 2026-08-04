@@ -1,0 +1,5 @@
+# Place glowlab-release.jks here (gitignored).
+# Create with: pwsh ../scripts/create_release_keystore.ps1
+*
+!.gitignore
+!README.md

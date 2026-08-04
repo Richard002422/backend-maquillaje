@@ -18,6 +18,10 @@ const envSchema = z.object({
   RATE_LIMIT_AUTH_MAX: z.coerce.number().int().positive().default(30),
   RATE_LIMIT_HEAVY_MAX: z.coerce.number().int().positive().default(20),
   CORS_ORIGIN: z.string().optional(),
+  ADMIN_API_TOKEN: z.string().min(16).optional(),
+  AWS_REGION: z.string().default('us-east-2'),
+  AWS_S3_BUCKET: z.string().min(3).optional(),
+  AWS_S3_PUBLIC_BASE_URL: z.string().url().optional(),
 })
 
 export type Env = z.infer<typeof envSchema>

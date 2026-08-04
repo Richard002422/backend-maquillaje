@@ -10,13 +10,7 @@ import { HttpError } from '../middleware/httpError.js'
 
 const registerSchema = z.object({
   email: z.string().trim().email().max(255),
-  password: z
-    .string()
-    .min(10, 'La contraseña debe tener al menos 10 caracteres')
-    .max(128)
-    .regex(/[a-z]/, 'La contraseña debe incluir una letra minúscula')
-    .regex(/[A-Z]/, 'La contraseña debe incluir una letra mayúscula')
-    .regex(/\d/, 'La contraseña debe incluir al menos un número'),
+  password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres').max(128),
 })
 
 const loginSchema = registerSchema

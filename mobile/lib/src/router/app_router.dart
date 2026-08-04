@@ -10,6 +10,7 @@ import '../features/home/home_screen.dart';
 import '../features/influencers/influencers_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/shell/app_shell.dart';
+import '../presentation/features/web/web_host_screen.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 
@@ -89,6 +90,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         name: 'settings',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: '/web',
+        name: 'web',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const WebHostScreen(),
       ),
     ],
   );

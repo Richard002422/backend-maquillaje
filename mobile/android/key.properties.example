@@ -1,0 +1,9 @@
+# Copia este archivo a: android/key.properties
+# NUNCA lo subas a git (está en .gitignore).
+#
+# Genera el keystore primero (ver docs/PASO10_PRODUCCION.md o scripts/create_release_keystore.ps1).
+
+storePassword=REPLACE_ME
+keyPassword=REPLACE_ME
+keyAlias=glowlab
+storeFile=../keystore/glowlab-release.jks

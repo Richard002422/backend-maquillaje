@@ -1,19 +1,24 @@
 # glowlab_mobile
 
-Cliente **Flutter** (Android, iOS, Web) para GlowLab — maquillaje asistido por IA, catálogo, carrito persistente y AR con cámara.
+Cliente **Flutter** (shell Android + nativo). Producto web: `../frontend/` (Vite).
 
-## Documentación
+## Paso actual: 10 (producción)
 
-Documentación técnica del monorepo (arquitectura, API, seguridad, despliegue): **[`../docs/README.md`](../docs/README.md)**.
+Ver [`docs/PASO10_PRODUCCION.md`](docs/PASO10_PRODUCCION.md)
 
 ## Desarrollo
 
 ```bash
-flutter pub get
-flutter run
+cd frontend && npm run dev
+cd mobile && flutter run --flavor dev --dart-define-from-file=config/dev.json
 ```
 
-## Recursos Flutter
+## Release AAB (prod)
 
-- [Documentación Flutter](https://docs.flutter.dev/)
-- [Codelab introductorio](https://docs.flutter.dev/get-started/codelab)
+1. Generar keystore: `pwsh ./scripts/create_release_keystore.ps1`
+2. Editar `android/key.properties`
+3. Build:
+
+```bash
+flutter build appbundle --flavor prod --dart-define-from-file=config/prod.json --release
+```

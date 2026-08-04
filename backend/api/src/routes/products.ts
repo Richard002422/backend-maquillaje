@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import type { Product } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '../lib/prisma.js'
 import { HttpError } from '../middleware/httpError.js'
@@ -11,6 +12,27 @@ const listQuery = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(24),
 })
 
+function decimalToNumber(value: Product['price']): number {
+  return Number(value)
+}
+
+export function serializeProduct(p: Product) {
+  const priceEur = decimalToNumber(p.price)
+  return {
+    id: p.id,
+    name: p.name,
+    category: p.category,
+    price: priceEur,
+    priceEur,
+    description: p.description,
+    stock: p.stock,
+    imageUrl: p.imageUrl,
+    imageUrls: p.imageUrl ? [p.imageUrl] : [],
+    createdAt: p.createdAt.toISOString(),
+    updatedAt: p.updatedAt.toISOString(),
+  }
+}
+
 export function productsRouter() {
   const r = Router()
 
@@ -22,9 +44,9 @@ export function productsRouter() {
       }
       const q = parsed.data
 
-      const dbWhere: { category?: string; priceEur?: { lte: number } } = {}
+      const dbWhere: { category?: string; price?: { lte: number } } = {}
       if (q.category) dbWhere.category = q.category
-      if (q.maxPrice != null) dbWhere.priceEur = { lte: q.maxPrice }
+      if (q.maxPrice != null) dbWhere.price = { lte: q.maxPrice }
 
       let rows = await prisma.product.findMany({
         where: Object.keys(dbWhere).length ? dbWhere : undefined,
@@ -34,12 +56,8 @@ export function productsRouter() {
       if (q.q?.trim()) {
         const term = q.q.trim().toLowerCase()
         rows = rows.filter((p) => {
-          const tags = p.tags as string[]
-          return (
-            p.name.toLowerCase().includes(term) ||
-            p.category.toLowerCase().includes(term) ||
-            tags.some((t) => t.toLowerCase().includes(term))
-          )
+          const haystack = `${p.name} ${p.category} ${p.description ?? ''}`.toLowerCase()
+          return haystack.includes(term)
         })
       }
 
@@ -60,7 +78,7 @@ export function productsRouter() {
 
   r.get('/:id', async (req, res, next) => {
     try {
-      const p = await prisma.product.findUnique({ where: { id: req.params.id } })
+      const p = await prisma.product.findUnique({ where: { id: String(req.params.id) } })
       if (!p) {
         throw new HttpError(404, 'Producto no encontrado', 'NOT_FOUND')
       }
@@ -71,28 +89,4 @@ export function productsRouter() {
   })
 
   return r
-}
-
-export function serializeProduct(p: {
-  id: string
-  name: string
-  category: string
-  priceEur: number
-  tags: unknown
-  imageUrls: unknown
-  stockHint: string | null
-  discountPercent: number | null
-  aiPitch: string | null
-}) {
-  return {
-    id: p.id,
-    name: p.name,
-    category: p.category,
-    priceEur: p.priceEur,
-    tags: p.tags as string[],
-    imageUrls: p.imageUrls as string[],
-    stockHint: p.stockHint,
-    discountPercent: p.discountPercent,
-    aiPitch: p.aiPitch,
-  }
 }

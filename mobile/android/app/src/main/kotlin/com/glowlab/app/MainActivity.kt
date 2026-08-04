@@ -1,4 +1,4 @@
-package com.example.glowlab_mobile
+package com.glowlab.app
 
 import io.flutter.embedding.android.FlutterActivity
 

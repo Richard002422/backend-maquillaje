@@ -6,6 +6,9 @@ import 'face_overlay_painter.dart';
 
 /// Vista previa en vivo + guía AR. Sustituye el overlay por landmarks reales
 /// cuando conectes ML Kit o MediaPipe Face Landmarker.
+///
+/// Lifecycle: pausa el preview en `inactive`/`paused` para no dejar la cámara
+/// encendida en background (batería + privacidad).
 class ArTryOnScreen extends StatefulWidget {
   const ArTryOnScreen({super.key});
 
@@ -13,7 +16,7 @@ class ArTryOnScreen extends StatefulWidget {
   State<ArTryOnScreen> createState() => _ArTryOnScreenState();
 }
 
-class _ArTryOnScreenState extends State<ArTryOnScreen> {
+class _ArTryOnScreenState extends State<ArTryOnScreen> with WidgetsBindingObserver {
   CameraController? _camera;
   String? _error;
   bool _busy = false;
@@ -21,7 +24,22 @@ class _ArTryOnScreenState extends State<ArTryOnScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initCamera();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final camera = _camera;
+    if (camera == null || !camera.value.isInitialized) return;
+
+    if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
+      camera.pausePreview();
+      return;
+    }
+    if (state == AppLifecycleState.resumed) {
+      camera.resumePreview();
+    }
   }
 
   Future<void> _initCamera() async {
@@ -77,6 +95,7 @@ class _ArTryOnScreenState extends State<ArTryOnScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _camera?.dispose();
     super.dispose();
   }

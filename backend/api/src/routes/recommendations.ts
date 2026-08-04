@@ -129,7 +129,7 @@ async function generateRecommendations(
   requestId?: string,
 ) {
   const cartSet = new Set(cartIds)
-  const all = await prisma.product.findMany({ where: { isActive: true } })
+  const all = await prisma.product.findMany({ where: { stock: { gt: 0 } } })
   let orderedIds: string[]
   let source: 'ai' | 'fallback' = 'ai'
 

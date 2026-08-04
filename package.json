@@ -4,9 +4,12 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
+    "dev": "npm --prefix frontend run dev",
+    "dev:legacy-root": "vite",
+    "build": "npm --prefix frontend run build",
+    "build:legacy-root": "tsc && vite build",
+    "preview": "npm --prefix frontend run preview",
+    "start": "node dist/index.js"
   },
   "devDependencies": {
     "typescript": "~6.0.2",

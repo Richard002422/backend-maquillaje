@@ -21,6 +21,10 @@ build/
 **/android/captures/
 **/android/local.properties
 **/android/**/GeneratedPluginRegistrant.java
+**/android/key.properties
+**/android/*.jks
+**/android/*.keystore
+**/android/app/google-services.json
 **/android/app/debug/
 **/android/app/profile/
 **/android/app/release/

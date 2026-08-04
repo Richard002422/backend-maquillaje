@@ -1,0 +1,5 @@
+{
+  "APP_FLAVOR": "prod",
+  "API_BASE": "https://api.glowlab.app",
+  "WEB_BASE_URL": "https://app.glowlab.app"
+}

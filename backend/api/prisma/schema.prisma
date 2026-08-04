@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
@@ -20,19 +21,41 @@ enum TryOnStatus {
 }
 
 model User {
-  id               String              @id @default(cuid())
-  email            String              @unique
-  passwordHash     String
-  firstName        String?
-  lastName         String?
-  skinTone         String?
-  skinType         String?
-  preferredStyles  String[]            @default([])
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
-  refreshTokens    RefreshToken[]
-  recommendations  Recommendation[]
-  tryOnSessions    MakeupTryOnSession[]
+  id                String               @id @default(cuid())
+  email             String               @unique
+  passwordHash      String
+  firstName         String?              @db.VarChar(80)
+  lastName          String?              @db.VarChar(80)
+  phone             String?              @db.VarChar(32)
+  passwordChangedAt DateTime?
+  skinTone          String?
+  skinType          String?
+  preferredStyles   String[]             @default([])
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  customerProfile   CustomerProfile?
+  refreshTokens     RefreshToken[]
+  recommendations   Recommendation[]
+  tryOnSessions     MakeupTryOnSession[]
+}
+
+/// Datos de envío y consentimiento de la pantalla «Editar perfil» (1:1 con User).
+model CustomerProfile {
+  userId         String    @id
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  addressLine    String?   @db.VarChar(255)
+  city           String?   @db.VarChar(120)
+  postalCode     String?   @db.VarChar(20)
+  country        String    @default("España") @db.VarChar(80)
+  acceptsTerms   Boolean   @default(false)
+  acceptsTermsAt DateTime?
+  termsVersion   String?   @default("2026-06-14") @db.VarChar(40)
+  /// Marca cuándo el cliente completó todos los campos obligatorios del perfil.
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@map("customer_profiles")
 }
 
 model RefreshToken {
@@ -46,27 +69,23 @@ model RefreshToken {
   @@index([userId])
 }
 
+/// Catálogo de productos (datos estructurados para la tienda).
 model Product {
-  id                  String               @id
-  sku                 String?              @unique
-  name                String
-  description         String?
-  brand               String?
-  category            String
-  subcategory         String?
-  shade               String?
-  priceEur            Float
-  currency            String               @default("EUR")
-  tags                Json
-  imageUrls           Json
-  stockHint           String?
-  discountPercent     Int?
-  aiPitch             String?
-  isActive            Boolean              @default(true)
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(255)
+  price       Decimal  @db.Decimal(12, 2)
+  description String?  @db.Text
+  category    String   @db.VarChar(120)
+  stock       Int      @default(0)
+  imageUrl    String?  @db.Text @map("image_url")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
   recommendationItems RecommendationItem[]
   tryOnSessions       MakeupTryOnSession[]
+
+  @@index([category])
+  @@map("products")
 }
 
 model Recommendation {
@@ -86,7 +105,7 @@ model Recommendation {
 model RecommendationItem {
   id                String         @id @default(cuid())
   recommendationId  String
-  productId         String
+  productId         String         @db.Uuid
   rank              Int
   score             Float?
   reason            String?
@@ -102,7 +121,7 @@ model MakeupTryOnSession {
   id             String       @id @default(cuid())
   userId         String
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  productId      String?
+  productId      String?      @db.Uuid
   product        Product?     @relation(fields: [productId], references: [id], onDelete: SetNull)
   lookId         String
   sourceImageUrl String?

@@ -47,6 +47,12 @@ class HomeScreen extends ConsumerWidget {
                 ),
           ),
           const SizedBox(height: 20),
+          FilledButton.icon(
+            onPressed: () => context.push('/web'),
+            icon: const Icon(Icons.language),
+            label: const Text('Abrir producto web (Paso 4)'),
+          ),
+          const SizedBox(height: 20),
           const TrustStrip(),
           const SizedBox(height: 16),
           const SocialProofPulse(),

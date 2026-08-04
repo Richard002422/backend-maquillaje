@@ -11,14 +11,13 @@ export function localRecommendationOrder(
   const scored = new Map<string, number>()
   for (const p of products) {
     let s = 0
-    const tags = p.tags as unknown as string[]
-    if (p.aiPitch) s += 2
-    if (lastLook === 'natural' && tags.some((t) => t.includes('lumin'))) s += 3
-    if (lastLook === 'minimal' && tags.some((t) => t.includes('natural') || t.includes('fresco'))) s += 2
+    const text = `${p.name} ${p.description ?? ''}`.toLowerCase()
+    if (lastLook === 'natural' && (p.category === 'Skincare' || text.includes('brillo'))) s += 3
+    if (lastLook === 'minimal' && (text.includes('natural') || text.includes('fresco'))) s += 2
     if (lastLook === 'fiesta' && p.category === 'Ojos') s += 3
-    if (lastLook === 'editorial' && tags.includes('editorial')) s += 3
+    if (lastLook === 'editorial' && p.category === 'Ojos') s += 2
+    if (p.stock > 0) s += 1
     if (cartProductIds.has(p.id)) s -= 5
-    if (p.discountPercent != null) s += 1
     scored.set(p.id, s)
   }
   return [...products]
