@@ -81,7 +81,7 @@ export function serializeOrder(o: OrderWithRelations) {
   }
 }
 
-const orderInclude = { user: true, items: true } satisfies Prisma.OrderInclude
+export const orderInclude = { user: true, items: true } satisfies Prisma.OrderInclude
 
 export function adminOrdersRouter(_env: Env) {
   const r = Router()
