@@ -7,6 +7,7 @@ import { prisma } from '../lib/prisma.js'
 import { isS3Configured, uploadProductImage } from '../lib/s3.js'
 import { serializeProduct } from '../routes/products.js'
 import { HttpError } from '../middleware/httpError.js'
+import { requireAdmin } from '../middleware/requireAdmin.js'
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -21,17 +22,6 @@ const createProductSchema = z.object({
   stock: z.coerce.number().int().min(0).default(0),
   imageUrl: z.string().url().optional(),
 })
-
-function requireAdmin(env: Env) {
-  return (req: import('express').Request, _res: import('express').Response, next: import('express').NextFunction) => {
-    const token = req.header('X-Admin-Token') ?? req.header('Authorization')?.replace(/^Bearer\s+/i, '')
-    if (!env.ADMIN_API_TOKEN || token !== env.ADMIN_API_TOKEN) {
-      next(new HttpError(401, 'Token de administrador inválido', 'UNAUTHORIZED'))
-      return
-    }
-    next()
-  }
-}
 
 export function adminProductsRouter(env: Env) {
   const r = Router()

@@ -52,6 +52,7 @@ export const profileUserSelect = {
   skinTone: true,
   skinType: true,
   preferredStyles: true,
+  status: true,
   createdAt: true,
   updatedAt: true,
   customerProfile: true,

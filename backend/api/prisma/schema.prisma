@@ -20,6 +20,27 @@ enum TryOnStatus {
   FAILED
 }
 
+/// Estado de cuenta gestionable desde el panel admin (Lumina). No confundir
+/// con `Product.isActive`: acá ARCHIVED no existe porque una cuenta de
+/// cliente no tiene un ciclo "borrador" — solo se activa/desactiva/archiva
+/// como soft-delete si el usuario pide baja.
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+/// Espejo de OrderStatus en src/types/domain.ts (panel admin Lumina).
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
 model User {
   id                String               @id @default(cuid())
   email             String               @unique
@@ -31,18 +52,26 @@ model User {
   skinTone          String?
   skinType          String?
   preferredStyles   String[]             @default([])
+  /// Gestionable desde el panel admin (Lumina) vía PATCH
+  /// /admin/customers/:id/status — no lo toca la app de cliente.
+  status            UserStatus           @default(ACTIVE)
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
   customerProfile   CustomerProfile?
   refreshTokens     RefreshToken[]
   recommendations   Recommendation[]
   tryOnSessions     MakeupTryOnSession[]
+  orders            Order[]
 }
 
 /// Datos de envío y consentimiento de la pantalla «Editar perfil» (1:1 con User).
 model CustomerProfile {
   userId         String    @id
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Preocupaciones de piel del cliente (acné, manchas, arrugas...) — panel
+  /// admin Lumina las muestra en Customer.skinProfile.concerns.
+  concerns       String[]  @default([])
+  undertone      String?   @db.VarChar(20)
   addressLine    String?   @db.VarChar(255)
   city           String?   @db.VarChar(120)
   postalCode     String?   @db.VarChar(20)
@@ -74,18 +103,66 @@ model Product {
   id          String   @id @default(uuid()) @db.Uuid
   name        String   @db.VarChar(255)
   price       Decimal  @db.Decimal(12, 2)
+  /// Código ISO de la divisa de `price` (p. ej. 'EUR', 'MXN'). No convierte
+  /// nada — cada producto se muestra y se factura en su propia divisa.
+  currency    String   @default("EUR") @db.VarChar(8)
+  /// Precio de referencia "antes de descuento", en la misma divisa que `price`.
+  originalPrice   Decimal? @db.Decimal(12, 2) @map("original_price")
+  discountPercent Int?     @map("discount_percent")
   description String?  @db.Text
   category    String   @db.VarChar(120)
   stock       Int      @default(0)
+  /// Imagen principal/legado (compatibilidad con `POST /admin/products/:id/images`,
+  /// que sube un único archivo a S3). El catálogo/galería real es `imageUrls`.
   imageUrl    String?  @db.Text @map("image_url")
+  /// Galería completa del producto, en orden — lo que alimenta el carrusel
+  /// deslizable de la ficha de producto. Si está vacío, la API cae a `[imageUrl]`.
+  imageUrls   String[] @default([]) @map("image_urls")
+  tags        String[] @default([])
+  stockHint   String?  @db.VarChar(160) @map("stock_hint")
+  aiPitch     String?  @db.Text @map("ai_pitch")
+  /// Soft-delete/visibilidad: false = oculto del catálogo público, pero sigue
+  /// existiendo (y editable) en el panel admin. El borrado real usa DELETE.
+  isActive    Boolean  @default(true) @map("is_active")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   recommendationItems RecommendationItem[]
   tryOnSessions       MakeupTryOnSession[]
+  lashOverlay         LashOverlayAsset?
+  orderItems          OrderItem[]
 
   @@index([category])
   @@map("products")
+}
+
+/// Metadatos del probador virtual de pestañas con IA (Fase 0-4): separado de
+/// `Product` porque no todo producto tiene overlay AR, y estas coordenadas se
+/// validan/consumen tal cual (no un JSON opaco). El motor de render del
+/// frontend (`lashTransform.ts`) resuelve una transformación de similitud
+/// (traslación+rotación+escala) mapeando `anchorInner`/`anchorOuter` del PNG
+/// a los landmarks del ojo detectado.
+model LashOverlayAsset {
+  productId  String   @id @db.Uuid
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  /// PNG-32 con alpha real, listo para superponer. Ruta relativa (dev, servida
+  /// desde frontend/public/) o absoluta (S3/CDN en producción) — el cliente
+  /// la usa tal cual como `src`, el navegador resuelve el resto.
+  overlayUrl    String  @db.Text
+  canvasWidth   Int
+  canvasHeight  Int
+  /// Anclas normalizadas [0,1] respecto al lienzo (canvasWidth x canvasHeight).
+  anchorInnerX  Float
+  anchorInnerY  Float
+  anchorOuterX  Float
+  anchorOuterY  Float
+  /// Informativo/QA — ver comentario equivalente en frontend/lashAssets.ts.
+  eyeWidthRefPx Float
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("lash_overlay_assets")
 }
 
 model Recommendation {
@@ -147,4 +224,60 @@ model TryOnAsset {
   session     MakeupTryOnSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
+}
+
+/// Pedidos (panel admin Lumina): quién los crea hoy es un dominio aparte
+/// (checkout de la app, todavía no construido — no hay carrito/pago en el
+/// contrato público de este backend). Este modelo es el sistema de
+/// registro para cuando exista esa Fase; hasta entonces el panel admin
+/// solo lista/gestiona lo que haya (vacío es un estado válido).
+model Order {
+  id                 String      @id @default(uuid()) @db.Uuid
+  /// Código legible para el cliente/soporte (ej. "ORD-000123"),
+  /// independiente del `id` interno.
+  orderNumber        String      @unique @map("order_number")
+  userId             String
+  user               User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  status             OrderStatus @default(PENDING)
+  subtotal           Decimal     @db.Decimal(12, 2)
+  discount           Decimal     @default(0) @db.Decimal(12, 2)
+  shipping           Decimal     @default(0) @db.Decimal(12, 2)
+  tax                Decimal     @default(0) @db.Decimal(12, 2)
+  total              Decimal     @db.Decimal(12, 2)
+  currency           String      @default("EUR") @db.VarChar(8)
+  shippingLine1      String?     @db.VarChar(255) @map("shipping_line1")
+  shippingLine2      String?     @db.VarChar(255) @map("shipping_line2")
+  shippingCity       String?     @db.VarChar(120) @map("shipping_city")
+  shippingState      String?     @db.VarChar(120) @map("shipping_state")
+  shippingPostalCode String?     @db.VarChar(20) @map("shipping_postal_code")
+  shippingCountry    String?     @db.VarChar(80) @map("shipping_country")
+  notes              String?     @db.Text
+  createdAt          DateTime    @default(now()) @map("created_at")
+  updatedAt          DateTime    @updatedAt @map("updated_at")
+  items              OrderItem[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@map("orders")
+}
+
+/// Snapshot al momento de la compra (nombre/precio/imagen no se recalculan
+/// si el producto cambia o se borra después) — `product` puede quedar null
+/// (SetNull) sin invalidar el historial del pedido.
+model OrderItem {
+  id          String   @id @default(cuid())
+  orderId     String   @db.Uuid
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String?  @db.Uuid
+  product     Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productName String   @db.VarChar(255) @map("product_name")
+  imageUrl    String?  @db.Text @map("image_url")
+  quantity    Int
+  unitPrice   Decimal  @db.Decimal(12, 2) @map("unit_price")
+  total       Decimal  @db.Decimal(12, 2)
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
 }

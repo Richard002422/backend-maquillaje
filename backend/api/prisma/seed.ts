@@ -162,8 +162,85 @@ async function main() {
     },
   })
 
+  // Pedidos demo para el panel admin (Lumina) — no hay checkout real todavía
+  // (ver docs/README del backend), así que sin esto la sección de Orders
+  // del panel se ve permanentemente vacía. A diferencia de products, acotado
+  // a "ORD-SEED-*": si algún día existe un checkout real creando pedidos de
+  // verdad, un restart de este contenedor no los borra.
+  await prisma.order.deleteMany({ where: { orderNumber: { startsWith: 'ORD-SEED-' } } })
+
+  const serum = byName.get('Sérum brillo 24h')!
+  const labial = byName.get('Labial velvet')!
+  const paleta = byName.get('Paleta atardecer')!
+
+  await prisma.order.create({
+    data: {
+      orderNumber: 'ORD-SEED-000001',
+      userId: demoUser.id,
+      status: 'DELIVERED',
+      subtotal: new Prisma.Decimal('54.00'),
+      shipping: new Prisma.Decimal('4.50'),
+      tax: new Prisma.Decimal('0'),
+      discount: new Prisma.Decimal('0'),
+      total: new Prisma.Decimal('58.50'),
+      currency: 'EUR',
+      shippingLine1: 'Calle Gran Vía 1',
+      shippingCity: 'Madrid',
+      shippingState: 'Madrid',
+      shippingPostalCode: '28013',
+      shippingCountry: 'España',
+      items: {
+        create: [
+          {
+            productId: serum.id,
+            productName: serum.name,
+            imageUrl: serum.imageUrl,
+            quantity: 1,
+            unitPrice: serum.price,
+            total: serum.price,
+          },
+          {
+            productId: labial.id,
+            productName: labial.name,
+            imageUrl: labial.imageUrl,
+            quantity: 1,
+            unitPrice: labial.price,
+            total: labial.price,
+          },
+        ],
+      },
+    },
+  })
+
+  await prisma.order.create({
+    data: {
+      orderNumber: 'ORD-SEED-000002',
+      userId: demoUser.id,
+      status: 'PENDING',
+      subtotal: paleta.price,
+      shipping: new Prisma.Decimal('4.50'),
+      tax: new Prisma.Decimal('0'),
+      discount: new Prisma.Decimal('0'),
+      total: paleta.price.add(new Prisma.Decimal('4.50')),
+      currency: 'EUR',
+      notes: 'Regalo - envolver por separado.',
+      items: {
+        create: [
+          {
+            productId: paleta.id,
+            productName: paleta.name,
+            imageUrl: paleta.imageUrl,
+            quantity: 1,
+            unitPrice: paleta.price,
+            total: paleta.price,
+          },
+        ],
+      },
+    },
+  })
+
   console.log(
-    `Seeded ${created.length} products, recommendation ${recommendation.id} and try-on ${tryOnSession.id}`,
+    `Seeded ${created.length} products, recommendation ${recommendation.id}, try-on ${tryOnSession.id} and 2 demo orders`,
   )
 }
 

@@ -64,6 +64,15 @@ services:
       context: ./api
       dockerfile: Dockerfile
     restart: unless-stopped
+    # Publicado SOLO en loopback (127.0.0.1), nunca 0.0.0.0: es el canal
+    # server-to-server para que el backend admin de Lumina (Django, otro
+    # repo/host en prod) llame a /v1/admin/* directo, sin pasar por el
+    # gateway público ni depender de que ese gateway abra esa ruta al
+    # mundo. En local, el contenedor de Django lo alcanza como
+    # host.docker.internal:4000 (ver GLOWLAB_API_BASE_URL en
+    # panel_administrativo_app_ai_maquillaje/backend/.env).
+    ports:
+      - "127.0.0.1:4000:4000"
     env_file:
       - path: ./.env
         required: false

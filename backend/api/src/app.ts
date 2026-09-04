@@ -7,6 +7,8 @@ import { errorHandler } from './middleware/errorHandler.js'
 import { HttpError } from './middleware/httpError.js'
 import { requestIdMiddleware } from './middleware/requestId.js'
 import { preventPrototypePollution } from './middleware/security.js'
+import { adminCustomersRouter } from './routes/adminCustomers.js'
+import { adminOrdersRouter } from './routes/adminOrders.js'
 import { adminProductsRouter } from './routes/adminProducts.js'
 import { authRouter } from './routes/auth.js'
 import { healthRouter } from './routes/health.js'
@@ -71,6 +73,8 @@ export function createApp(env: Env) {
   v1.use('/auth', authLimiter, authRouter(env))
   v1.use('/products', productsRouter())
   v1.use('/admin/products', adminProductsRouter(env))
+  v1.use('/admin/orders', adminOrdersRouter(env))
+  v1.use('/admin/customers', adminCustomersRouter(env))
   v1.use('/users', usersRouter(env))
   v1.use('/recommendations', recommendationsRouter(env))
   v1.use('/realtime', heavyLimiter, realtimeRouter(env))
