@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     media_dir: str = "./media"
     media_base_url: str = "/media"
 
+    # Gemini (coloración de cabello con IA generativa)
+    gemini_api_key: str = ""
+    gemini_image_model: str = "gemini-3.1-flash-image"
+
 
 @lru_cache
 def get_settings() -> Settings:

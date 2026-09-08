@@ -11,8 +11,25 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # Crea la base glowlab_lashtryon (lash-tryon-service) en un volumen
+      # nuevo — ver postgres-init/01-create-lashtryon-db.sh para el caso de
+      # un volumen ya existente.
+      - ./postgres-init:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U glowlab -d glowlab"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: glowlab-redis
+    restart: unless-stopped
+    # Sin publicar puerto al host: solo lo usan lash-tryon/lash-tryon-worker
+    # dentro de la red interna de Docker (broker de Celery + cache, Fase 0-8).
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -28,6 +45,8 @@ services:
       - "8080:8080"
     depends_on:
       api:
+        condition: service_healthy
+      lash-tryon:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8080/health || exit 1"]
@@ -95,6 +114,64 @@ services:
       timeout: 5s
       retries: 5
       start_period: 25s
+
+  lash-tryon:
+    container_name: glowlab-lash-tryon
+    build:
+      context: ./lash-tryon-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - path: ./lash-tryon-service/.env
+        required: false
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.prod
+      DATABASE_URL: postgresql://glowlab:glowlab@postgres:5432/glowlab_lashtryon
+      DJANGO_ALLOWED_HOSTS: lash-tryon,localhost
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?}
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/healthz/')\" || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  lash-tryon-worker:
+    container_name: glowlab-lash-tryon-worker
+    build:
+      context: ./lash-tryon-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    # Misma imagen que `lash-tryon`, comando distinto: procesa la cola de
+    # Celery en vez de servir HTTP (ver README.md / Fase 4 para las tareas
+    # reales — thumbnails, limpieza de fotos huérfanas).
+    command: ["celery", "-A", "config", "worker", "--loglevel=INFO", "--concurrency=2"]
+    env_file:
+      - path: ./lash-tryon-service/.env
+        required: false
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.prod
+      DATABASE_URL: postgresql://glowlab:glowlab@postgres:5432/glowlab_lashtryon
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?}
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      lash-tryon:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A config inspect ping -d celery@$$HOSTNAME || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
 
 volumes:
   postgres_data:

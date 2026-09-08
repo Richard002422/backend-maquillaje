@@ -11,6 +11,8 @@
     "db:migrate": "prisma migrate deploy",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
+    "db:seed:lashes": "tsx prisma/seedLashCollection.ts",
+    "db:seed:taxonomy": "tsx prisma/seedCatalogTaxonomy.ts",
     "aws:setup-s3-bucket": "tsx scripts/setup-s3-bucket.ts",
     "postinstall": "prisma generate"
   },

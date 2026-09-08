@@ -78,7 +78,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
               children: [
                 Expanded(
                   child: Text(
-                    'Precio máx. ${q.maxPrice.round()} €',
+                    'Precio máx. ≈ ${q.maxPrice.round()} € (equivalente)',
                     style: Theme.of(context).textTheme.labelLarge,
                   ),
                 ),
@@ -152,7 +152,7 @@ class _ProductTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${product.priceEur.toStringAsFixed(2)} € · ${product.category}',
+                    '${product.price.toStringAsFixed(2)} ${product.currencySymbol} · ${product.category}',
                     style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
                 ],

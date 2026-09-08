@@ -52,7 +52,7 @@ final filteredProductsProvider = Provider<List<Product>>((ref) {
   final q = ref.watch(catalogQueryProvider);
   final t = q.searchText.trim().toLowerCase();
   return ref.watch(allProductsProvider).where((p) {
-    if (p.priceEur > q.maxPrice) return false;
+    if (p.priceEurEquivalent > q.maxPrice) return false;
     if (q.category != null && p.category != q.category) return false;
     if (t.isEmpty) return true;
     final inName = p.name.toLowerCase().contains(t);

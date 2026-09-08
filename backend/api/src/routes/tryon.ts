@@ -5,7 +5,7 @@ import type { Env } from '../config.js'
 import { prisma } from '../lib/prisma.js'
 import { requireAuth } from '../middleware/authenticate.js'
 import { HttpError } from '../middleware/httpError.js'
-import { callAiTryOn } from '../services/aiClient.js'
+import { callAiHairColor, callAiTryOn } from '../services/aiClient.js'
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -14,6 +14,28 @@ const upload = multer({
 
 const bodySchema = z.object({
   lookId: z.string().min(1).max(64),
+})
+
+// Debe coincidir con las claves de HAIR_COLORS en backend/ai-service/app/services/hair_color.py
+const HAIR_COLOR_IDS = [
+  'rubio-platino',
+  'rubio-dorado',
+  'castano-claro',
+  'castano-chocolate',
+  'negro-azabache',
+  'pelirrojo-cobrizo',
+  'caoba',
+  'rosa-pastel',
+  'azul-noche',
+  'gris-plata',
+] as const
+
+const hairColorBodySchema = z.object({
+  colorId: z.enum(HAIR_COLOR_IDS),
+})
+
+const lashResultBodySchema = z.object({
+  productId: z.string().uuid(),
 })
 
 export function tryOnRouter(env: Env) {
@@ -64,6 +86,79 @@ export function tryOnRouter(env: Env) {
         latencyMs: ai.latency_ms,
         note: ai.note,
       })
+    } catch (e) {
+      next(e)
+    }
+  })
+
+  // Coloración de cabello con Gemini. A diferencia de POST "/", no persiste
+  // sesión ni imagen en el servidor: la selfie del usuario sólo viaja hasta
+  // el servicio de IA y la respuesta se devuelve como data URL efímera.
+  r.post('/hair-color', upload.single('image'), async (req, res, next) => {
+    try {
+      if (!req.file?.buffer) {
+        throw new HttpError(400, 'Campo multipart "image" requerido', 'MISSING_IMAGE')
+      }
+      const parsed = hairColorBodySchema.safeParse({ colorId: req.body.colorId })
+      if (!parsed.success) {
+        throw new HttpError(400, 'colorId inválido', 'VALIDATION_ERROR', parsed.error.flatten())
+      }
+
+      const ai = await callAiHairColor(
+        env,
+        {
+          colorId: parsed.data.colorId,
+          image: req.file.buffer,
+          filename: req.file.originalname || 'upload.jpg',
+        },
+        { requestId: req.requestId },
+      )
+
+      return res.status(200).json({
+        imageDataUrl: ai.image_data_url,
+        colorId: ai.color_id,
+        colorLabel: ai.color_label,
+        latencyMs: ai.latency_ms,
+        note: ai.note,
+      })
+    } catch (e) {
+      next(e)
+    }
+  })
+
+  // Probador de pestañas (Fase 0-5): a diferencia de "/" y "/hair-color", este
+  // endpoint NO recibe ninguna imagen ni llama al AI service — el tracking
+  // facial y el compuesto de la foto ya ocurrieron 100% en el dispositivo
+  // (MediaPipe Face Landmarker + canvas del cliente). Su único trabajo es
+  // dejar constancia de qué producto se probó, para el historial del usuario;
+  // la foto en sí nunca sale del dispositivo salvo que el propio usuario la
+  // comparta/guarde por su cuenta (Web Share API / descarga del navegador).
+  r.post('/lashes', async (req, res, next) => {
+    try {
+      const parsed = lashResultBodySchema.safeParse(req.body)
+      if (!parsed.success) {
+        throw new HttpError(400, 'productId inválido', 'VALIDATION_ERROR', parsed.error.flatten())
+      }
+      const { productId } = parsed.data
+
+      const product = await prisma.product.findUnique({ where: { id: productId } })
+      if (!product) {
+        throw new HttpError(404, 'Producto no encontrado', 'NOT_FOUND')
+      }
+
+      const created = await prisma.makeupTryOnSession.create({
+        data: {
+          userId: req.userId!,
+          productId,
+          lookId: `lash:${productId}`,
+          sourceImageUrl: null,
+          previewUrl: null,
+          status: 'COMPLETED',
+          note: 'Generado 100% en el dispositivo (MediaPipe Face Landmarker); la imagen no se sube al servidor.',
+        },
+      })
+
+      return res.status(201).json({ sessionId: created.id, productId, createdAt: created.createdAt })
     } catch (e) {
       next(e)
     }

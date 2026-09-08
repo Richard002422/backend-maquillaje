@@ -195,7 +195,10 @@ class _FeaturedCard extends StatelessWidget {
                     const SizedBox(height: 8),
                     Text(product.name, style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 4),
-                    Text('${product.priceEur.toStringAsFixed(2)} €', style: Theme.of(context).textTheme.titleSmall),
+                    Text(
+                      '${product.price.toStringAsFixed(2)} ${product.currencySymbol}',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
                     const SizedBox(height: 8),
                     Text(
                       'CTA principal: un toque para ver detalle, carousel y añadir al carrito.',

@@ -56,6 +56,7 @@ class _WebHostScreenState extends ConsumerState<WebHostScreen> {
       final controller = await WebViewControllerFactory(
         config: config,
         logger: logger,
+        permissions: ref.read(permissionServiceProvider),
         bridgeBinder: binder,
       ).create(
         onProgress: (p) {

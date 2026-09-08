@@ -67,6 +67,8 @@ export type CustomerProfileResponse = {
   termsVersion: string | null
   completedAt: string | null
   profileComplete: boolean
+  emailVerified: boolean
+  marketingOptIn: boolean
   updatedAt: string
 }
 

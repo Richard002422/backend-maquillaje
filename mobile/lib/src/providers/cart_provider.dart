@@ -65,12 +65,17 @@ class CartNotifier extends Notifier<List<CartLine>> {
   int get totalItems => state.fold(0, (a, b) => a + b.quantity);
 }
 
-final cartTotalProvider = Provider<double>((ref) {
+/// Totales del carrito agrupados por divisa — un carrito puede mezclar
+/// productos en distintas divisas (p. ej. EUR y MXN), así que sumarlos en un
+/// solo número sería incorrecto. La UI muestra una línea de total por divisa.
+final cartTotalsProvider = Provider<Map<String, double>>((ref) {
   final lines = ref.watch(cartProvider);
-  double sum = 0;
+  final totals = <String, double>{};
   for (final line in lines) {
     final p = productById(line.productId);
-    if (p != null) sum += p.priceEur * line.quantity;
+    if (p != null) {
+      totals[p.currency] = (totals[p.currency] ?? 0) + p.price * line.quantity;
+    }
   }
-  return sum;
+  return totals;
 });

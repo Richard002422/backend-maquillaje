@@ -1,10 +1,11 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, Header, Response, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Response, UploadFile, WebSocket, WebSocketDisconnect, status
 
 from ..deps import verify_internal_token
 from ..logic.recommendations import recommend
 from ..schemas import (
+    HairColorResponse,
     RecommendationRequest,
     RecommendationResponse,
     RealtimeFrameRequest,
@@ -12,6 +13,7 @@ from ..schemas import (
     TryOnResponse,
 )
 from ..config import get_settings
+from ..services.hair_color import HairColorError, recolor_hair
 from ..services.vision import process_realtime_frame, run_try_on_pipeline
 
 router = APIRouter(prefix="/internal/v1", dependencies=[Depends(verify_internal_token)])
@@ -53,6 +55,29 @@ async def try_on(
         mask_urls=artifacts.mask_urls,
         latency_ms=artifacts.latency_ms,
         note=artifacts.note,
+    )
+
+
+@router.post("/hair-color", response_model=HairColorResponse)
+async def hair_color(
+    response: Response,
+    color_id: Annotated[str, Form()],
+    image: UploadFile = File(...),
+    x_request_id: Annotated[str | None, Header(alias="X-Request-Id")] = None,
+):
+    if x_request_id:
+        response.headers["X-Request-Id"] = x_request_id
+    image_bytes = await image.read()
+    try:
+        artifact = recolor_hair(image_bytes, color_id)
+    except HairColorError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    return HairColorResponse(
+        image_data_url=artifact.image_data_url,
+        color_id=artifact.color_id,
+        color_label=artifact.color_label,
+        latency_ms=artifact.latency_ms,
+        note=artifact.note,
     )
 
 

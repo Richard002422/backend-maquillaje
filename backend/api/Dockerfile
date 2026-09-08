@@ -1,11 +1,11 @@
 FROM node:20-bookworm-slim AS deps
 WORKDIR /app
 COPY package*.json ./
+COPY prisma ./prisma
 RUN npm ci
 
 FROM deps AS build
 WORKDIR /app
-COPY prisma ./prisma
 COPY tsconfig.json ./
 COPY src ./src
 RUN npx prisma generate
@@ -22,4 +22,4 @@ EXPOSE 4000
 
 # Postgres: `db push` sincroniza esquema y `db seed` carga datos iniciales.
 # Cuando existan migraciones versionadas, sustituir `db push` por `migrate deploy`.
-CMD ["sh", "-c", "npx prisma db push && npx prisma db seed && node dist/server.js"]
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss && npx prisma db seed && node dist/server.js"]

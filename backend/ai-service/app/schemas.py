@@ -19,6 +19,14 @@ class TryOnResponse(BaseModel):
     note: str | None = None
 
 
+class HairColorResponse(BaseModel):
+    image_data_url: str
+    color_id: str
+    color_label: str
+    latency_ms: int
+    note: str | None = None
+
+
 class RealtimeFrameRequest(BaseModel):
     frame_base64: str = Field(min_length=20)
     look_id: str = Field(default="natural", min_length=1, max_length=64)

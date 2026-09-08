@@ -69,7 +69,72 @@ const catalog = [
     description: 'Rubor en crema difuminable con acabado fresco y natural.',
     imageUrl: img(8),
   },
+  // Categoría "Pestañas": productos con probador virtual con IA (ver
+  // LashOverlayAsset más abajo). Category separada de "Ojos" (paletas,
+  // delineador) a propósito: son los únicos productos con overlay AR.
+  {
+    name: 'Pestañas Natural Lash',
+    category: 'Pestañas',
+    price: new Prisma.Decimal('14.90'),
+    stock: 50,
+    description: 'Pestañas postizas de efecto natural, ligeras para uso diario.',
+    imageUrl: img(9),
+  },
+  {
+    name: 'Pestañas Volumen Silk',
+    category: 'Pestañas',
+    price: new Prisma.Decimal('18.90'),
+    stock: 40,
+    description: 'Pestañas postizas de volumen medio con fibra de seda sintética.',
+    imageUrl: img(10),
+  },
+  {
+    name: 'Pestañas Drama Wing',
+    category: 'Pestañas',
+    price: new Prisma.Decimal('21.90'),
+    stock: 25,
+    description: 'Pestañas postizas dramáticas de efecto winged, para looks de noche.',
+    imageUrl: img(11),
+  },
 ] as const
+
+// Metadatos del probador virtual (Fase 0-4). Coordenadas generadas junto con
+// los PNG placeholder en frontend/public/lash-assets/ (ver
+// scripts/gen_lash_assets.py referenciado en el chat) — si se reemplaza el
+// PNG por fotografía real de producto, estas anclas deben regenerarse para
+// el nuevo lienzo, no reusarse a ciegas.
+const LASH_OVERLAY_BY_PRODUCT_NAME: Record<string, Omit<Prisma.LashOverlayAssetUncheckedCreateInput, 'productId'>> = {
+  'Pestañas Natural Lash': {
+    overlayUrl: '/lash-assets/natural.png',
+    canvasWidth: 512,
+    canvasHeight: 256,
+    anchorInnerX: 0.1953,
+    anchorInnerY: 0.5859,
+    anchorOuterX: 0.8047,
+    anchorOuterY: 0.5,
+    eyeWidthRefPx: 312.77,
+  },
+  'Pestañas Volumen Silk': {
+    overlayUrl: '/lash-assets/volumen.png',
+    canvasWidth: 512,
+    canvasHeight: 256,
+    anchorInnerX: 0.1953,
+    anchorInnerY: 0.5859,
+    anchorOuterX: 0.8047,
+    anchorOuterY: 0.5,
+    eyeWidthRefPx: 312.77,
+  },
+  'Pestañas Drama Wing': {
+    overlayUrl: '/lash-assets/dramatico.png',
+    canvasWidth: 512,
+    canvasHeight: 256,
+    anchorInnerX: 0.1953,
+    anchorInnerY: 0.5859,
+    anchorOuterX: 0.8047,
+    anchorOuterY: 0.5,
+    eyeWidthRefPx: 312.77,
+  },
+}
 
 async function main() {
   const demoUser = await prisma.user.upsert({
@@ -109,6 +174,16 @@ async function main() {
   }
 
   const byName = new Map(created.map((p) => [p.name, p]))
+
+  for (const [productName, overlay] of Object.entries(LASH_OVERLAY_BY_PRODUCT_NAME)) {
+    const product = byName.get(productName)
+    if (!product) continue
+    await prisma.lashOverlayAsset.upsert({
+      where: { productId: product.id },
+      create: { productId: product.id, ...overlay },
+      update: overlay,
+    })
+  }
 
   const recommendation = await prisma.recommendation.create({
     data: {
@@ -160,6 +235,24 @@ async function main() {
         ],
       },
     },
+  })
+
+  // DeviceToken/InteractionEvent son propios del demoUser: a diferencia de
+  // Order (acotado por prefijo ORD-SEED-), acá alcanza con borrar todo lo
+  // suyo y recrear — no hay riesgo de pisar datos reales de otro usuario.
+  await prisma.deviceToken.deleteMany({ where: { userId: demoUser.id } })
+  await prisma.deviceToken.create({
+    data: { userId: demoUser.id, platform: 'ANDROID', token: 'seed-fcm-token-demo-android' },
+  })
+
+  await prisma.interactionEvent.deleteMany({ where: { userId: demoUser.id } })
+  await prisma.interactionEvent.createMany({
+    data: [
+      { userId: demoUser.id, type: 'CATEGORY_VIEW', refId: 'ojos' },
+      { userId: demoUser.id, type: 'PRODUCT_VIEW', refId: byName.get('Labial velvet')!.id },
+      { userId: demoUser.id, type: 'PRODUCT_VIEW', refId: byName.get('Sérum brillo 24h')!.id },
+      { userId: demoUser.id, type: 'SEARCH', searchTerm: 'base para piel mixta' },
+    ],
   })
 
   // Pedidos demo para el panel admin (Lumina) — no hay checkout real todavía

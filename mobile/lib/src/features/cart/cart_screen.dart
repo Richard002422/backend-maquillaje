@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/models/product.dart';
 import '../../data/products_seed.dart';
 import '../../providers/cart_provider.dart';
 
@@ -10,7 +11,7 @@ class CartScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final lines = ref.watch(cartProvider);
-    final total = ref.watch(cartTotalProvider);
+    final totals = ref.watch(cartTotalsProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -71,7 +72,7 @@ class CartScreen extends ConsumerWidget {
                               children: [
                                 Text(p.name, style: const TextStyle(fontWeight: FontWeight.w600)),
                                 const SizedBox(height: 4),
-                                Text('${p.priceEur.toStringAsFixed(2)} € / ud.'),
+                                Text('${p.price.toStringAsFixed(2)} ${p.currencySymbol} / ud.'),
                                 const SizedBox(height: 8),
                                 Row(
                                   children: [
@@ -111,16 +112,24 @@ class CartScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text('Total', style: Theme.of(context).textTheme.titleMedium),
-                            Text(
-                              '${total.toStringAsFixed(2)} €',
-                              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                        for (final entry in totals.entries)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  totals.length > 1 ? 'Total (${entry.key})' : 'Total',
+                                  style: Theme.of(context).textTheme.titleMedium,
+                                ),
+                                Text(
+                                  '${entry.value.toStringAsFixed(2)} ${Product.symbolForCurrency(entry.key)}',
+                                  style:
+                                      Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
                         const SizedBox(height: 12),
                         FilledButton(
                           onPressed: () {

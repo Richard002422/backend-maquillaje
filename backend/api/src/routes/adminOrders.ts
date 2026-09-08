@@ -21,6 +21,9 @@ const listQuery = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
   status: z.enum(ORDER_STATUSES).optional(),
   q: z.string().trim().optional(),
+  // Pestaña "Pedidos" del detalle de cliente (panel admin): filtra el
+  // historial de compra de un User puntual.
+  userId: z.string().trim().optional(),
 })
 
 const statusSchema = z.object({ status: z.enum(ORDER_STATUSES) })
@@ -97,6 +100,7 @@ export function adminOrdersRouter(_env: Env) {
 
       const where: Prisma.OrderWhereInput = {}
       if (q.status) where.status = q.status
+      if (q.userId) where.userId = q.userId
       if (q.q) {
         where.OR = [
           { orderNumber: { contains: q.q, mode: 'insensitive' } },

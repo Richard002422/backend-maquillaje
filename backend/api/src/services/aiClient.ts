@@ -16,6 +16,14 @@ export type AiTryOnResponse = {
   note?: string
 }
 
+export type AiHairColorResponse = {
+  image_data_url: string
+  color_id: string
+  color_label: string
+  latency_ms: number
+  note?: string
+}
+
 export type AiRealtimeFrameRequest = {
   frame_base64: string
   look_id: string
@@ -88,6 +96,41 @@ export async function callAiTryOn(
   return (await res.json()) as AiTryOnResponse
 }
 
+export async function callAiHairColor(
+  env: Env,
+  params: { colorId: string; image: Buffer; filename: string },
+  options?: AiCallOptions,
+): Promise<AiHairColorResponse> {
+  const url = new URL('/internal/v1/hair-color', env.AI_SERVICE_URL).toString()
+  const form = new FormData()
+  form.append('color_id', params.colorId)
+  const imageBytes = Uint8Array.from(params.image)
+  form.append(
+    'image',
+    new Blob([imageBytes], { type: 'application/octet-stream' }),
+    params.filename || 'upload.jpg',
+  )
+  // Gemini puede tardar bastante más que el pipeline CV local del try-on demo.
+  const res = await fetchWithRetry(
+    env,
+    url,
+    {
+      method: 'POST',
+      headers: {
+        'X-Internal-Token': env.INTERNAL_AI_TOKEN,
+        ...(options?.requestId ? { 'X-Request-Id': options.requestId } : {}),
+      },
+      body: form,
+    },
+    Math.max(env.AI_HTTP_TIMEOUT_MS, 20_000),
+  )
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`AI hair-color HTTP ${res.status}: ${text}`)
+  }
+  return (await res.json()) as AiHairColorResponse
+}
+
 export async function callAiRealtimeFrame(
   env: Env,
   body: AiRealtimeFrameRequest,
@@ -110,14 +153,19 @@ export async function callAiRealtimeFrame(
   return (await res.json()) as AiRealtimeFrameResponse
 }
 
-async function fetchWithRetry(env: Env, url: string, init: RequestInit): Promise<Response> {
+async function fetchWithRetry(
+  env: Env,
+  url: string,
+  init: RequestInit,
+  timeoutMs: number = env.AI_HTTP_TIMEOUT_MS,
+): Promise<Response> {
   let attempt = 0
   let lastError: unknown = null
   const maxAttempts = env.AI_HTTP_RETRIES + 1
 
   while (attempt < maxAttempts) {
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), env.AI_HTTP_TIMEOUT_MS)
+    const timeout = setTimeout(() => controller.abort(), timeoutMs)
     try {
       const res = await fetch(url, { ...init, signal: controller.signal })
       clearTimeout(timeout)

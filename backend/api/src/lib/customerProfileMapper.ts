@@ -37,6 +37,12 @@ export function toCustomerProfileResponse(user: UserWithProfile): CustomerProfil
     termsVersion: cp?.termsVersion ?? null,
     completedAt: cp?.completedAt?.toISOString() ?? null,
     profileComplete,
+    emailVerified: Boolean(user.emailVerifiedAt),
+    // Consentimiento de marketing (ver comentario en schema.prisma): se
+    // expone acá porque una pantalla de ajustes del cliente necesita
+    // mostrar el estado actual antes de dejarlo togglear vía
+    // PATCH /users/me/marketing-opt-in.
+    marketingOptIn: user.marketingOptIn,
     updatedAt: user.updatedAt.toISOString(),
   }
 }
@@ -49,10 +55,13 @@ export const profileUserSelect = {
   phone: true,
   passwordHash: true,
   passwordChangedAt: true,
+  emailVerifiedAt: true,
   skinTone: true,
   skinType: true,
   preferredStyles: true,
   status: true,
+  lastLoginAt: true,
+  marketingOptIn: true,
   createdAt: true,
   updatedAt: true,
   customerProfile: true,

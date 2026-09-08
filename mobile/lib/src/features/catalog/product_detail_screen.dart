@@ -118,7 +118,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                   Chip(label: Text('–${product.discountPercent}% · oferta')),
                 const SizedBox(height: 8),
                 Text(
-                  '${product.priceEur.toStringAsFixed(2)} €',
+                  '${product.price.toStringAsFixed(2)} ${product.currencySymbol}',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 Text(product.category, style: Theme.of(context).textTheme.labelLarge),
@@ -128,6 +128,12 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                   runSpacing: 8,
                   children: product.tags.map((t) => Chip(label: Text(t), visualDensity: VisualDensity.compact)).toList(),
                 ),
+                if (product.description != null) ...[
+                  const SizedBox(height: 24),
+                  Text('Descripción', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  Text(product.description!, style: Theme.of(context).textTheme.bodyLarge),
+                ],
                 const SizedBox(height: 24),
                 Text('Por qué la IA te lo recomienda', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),

@@ -1,11 +1,10 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import type { Env } from '../config.js'
-import { localRecommendationOrder } from '../lib/recommendationFallback.js'
 import { prisma } from '../lib/prisma.js'
 import { optionalAuth, requireAuth } from '../middleware/authenticate.js'
 import { HttpError } from '../middleware/httpError.js'
-import { callAiRecommendations } from '../services/aiClient.js'
+import { generateRecommendations } from '../modules/recommendations/generate.js'
 import { serializeProduct } from './products.js'
 
 const querySchema = z.object({
@@ -118,61 +117,4 @@ export function recommendationsRouter(env: Env) {
   })
 
   return r
-}
-
-async function generateRecommendations(
-  env: Env,
-  userId: string | null,
-  look: string | null,
-  cartIds: string[],
-  limit: number,
-  requestId?: string,
-) {
-  const cartSet = new Set(cartIds)
-  const all = await prisma.product.findMany({ where: { stock: { gt: 0 } } })
-  let orderedIds: string[]
-  let source: 'ai' | 'fallback' = 'ai'
-
-  try {
-    const ai = await callAiRecommendations(
-      env,
-      {
-        user_id: userId,
-        look,
-        cart_product_ids: cartIds,
-        limit,
-      },
-      { requestId },
-    )
-    orderedIds = ai.product_ids.slice(0, limit)
-  } catch (err) {
-    console.warn('[recommendations] Servicio IA no disponible, usando fallback local', err)
-    orderedIds = localRecommendationOrder(all, look ?? undefined, cartSet).slice(0, limit)
-    source = 'fallback'
-  }
-
-  const byId = new Map(all.map((p) => [p.id, p]))
-  const products = orderedIds.map((id) => byId.get(id)).filter((p): p is NonNullable<typeof p> => Boolean(p))
-
-  let recommendationId: string | null = null
-  if (userId) {
-    const created = await prisma.recommendation.create({
-      data: {
-        userId,
-        requestedLook: look,
-        cartProductIds: cartIds,
-        status: 'COMPLETED',
-        source,
-        items: {
-          create: products.map((p, idx) => ({
-            productId: p.id,
-            rank: idx + 1,
-          })),
-        },
-      },
-    })
-    recommendationId = created.id
-  }
-
-  return { products, recommendationId, source }
 }

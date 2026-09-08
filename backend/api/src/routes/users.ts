@@ -17,6 +17,36 @@ const patchBeautySchema = z.object({
   preferredStyles: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
 })
 
+const DEVICE_PLATFORMS = ['IOS', 'ANDROID', 'WEB'] as const
+
+const registerDeviceTokenSchema = z.object({
+  token: z.string().trim().min(10).max(512),
+  platform: z.enum(DEVICE_PLATFORMS),
+})
+
+const INTERACTION_TYPES = ['PRODUCT_VIEW', 'CATEGORY_VIEW', 'SEARCH'] as const
+
+const recordInteractionSchema = z
+  .object({
+    type: z.enum(INTERACTION_TYPES),
+    refId: z.string().trim().min(1).max(120).optional(),
+    searchTerm: z.string().trim().min(1).max(160).optional(),
+  })
+  // refId identifica el producto/categoría para PRODUCT_VIEW/CATEGORY_VIEW;
+  // searchTerm es el texto buscado para SEARCH — son mutuamente excluyentes
+  // porque `type` decide qué significa el evento (ver InteractionEvent en
+  // schema.prisma).
+  .refine((v) => v.type !== 'SEARCH' || Boolean(v.searchTerm), {
+    message: 'searchTerm es obligatorio para type=SEARCH',
+    path: ['searchTerm'],
+  })
+  .refine((v) => v.type === 'SEARCH' || Boolean(v.refId), {
+    message: 'refId es obligatorio para PRODUCT_VIEW/CATEGORY_VIEW',
+    path: ['refId'],
+  })
+
+const marketingOptInSchema = z.object({ marketingOptIn: z.boolean() })
+
 export function usersRouter(env: Env) {
   const r = Router()
   r.use(requireAuth(env))
@@ -162,6 +192,73 @@ export function usersRouter(env: Env) {
         userId: req.userId,
         counters: { recommendations, tryOns, activeRefreshTokens: refreshTokens },
       })
+    } catch (e) {
+      next(e)
+    }
+  })
+
+  // Registro de push (panel admin Lumina, Fase 8): upsert por `token` (único
+  // en la tabla) porque reinstalar la app o volver a loguearse en el mismo
+  // dispositivo debe reactivar el registro existente, no duplicarlo.
+  r.post('/me/device-tokens', async (req, res, next) => {
+    try {
+      const body = registerDeviceTokenSchema.parse(req.body)
+      const userId = req.userId!
+      const record = await prisma.deviceToken.upsert({
+        where: { token: body.token },
+        create: { userId, token: body.token, platform: body.platform, active: true },
+        update: { userId, platform: body.platform, active: true, lastSeenAt: new Date() },
+      })
+      return res.status(201).json({ id: record.id, platform: record.platform, active: record.active })
+    } catch (e) {
+      next(e)
+    }
+  })
+
+  // Best-effort: no lanza 404 si el token no existe o es de otro usuario —
+  // el logout del cliente no debería fallar por esto.
+  r.delete('/me/device-tokens/:token', async (req, res, next) => {
+    try {
+      await prisma.deviceToken.deleteMany({
+        where: { token: String(req.params.token), userId: req.userId! },
+      })
+      return res.status(204).send()
+    } catch (e) {
+      next(e)
+    }
+  })
+
+  // Señal de comportamiento para "productos/categorías de interés" del
+  // panel admin (ver InteractionEvent en schema.prisma) — sin límite de
+  // tasa propio: usa el globalLimiter ya aplicado a todo /v1 en app.ts.
+  r.post('/me/interactions', async (req, res, next) => {
+    try {
+      const body = recordInteractionSchema.parse(req.body)
+      await prisma.interactionEvent.create({
+        data: {
+          userId: req.userId!,
+          type: body.type,
+          refId: body.refId,
+          searchTerm: body.searchTerm,
+        },
+      })
+      return res.status(201).json({ ok: true })
+    } catch (e) {
+      next(e)
+    }
+  })
+
+  // Separado de PUT /me/profile a propósito: es un consentimiento legal
+  // distinto de acceptsTerms (ver comentario de marketingOptIn en
+  // schema.prisma), no un dato de perfil más.
+  r.patch('/me/marketing-opt-in', async (req, res, next) => {
+    try {
+      const body = marketingOptInSchema.parse(req.body)
+      await prisma.user.update({
+        where: { id: req.userId! },
+        data: { marketingOptIn: body.marketingOptIn },
+      })
+      return res.status(204).send()
     } catch (e) {
       next(e)
     }

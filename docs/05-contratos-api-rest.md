@@ -68,11 +68,65 @@ GET /v1/recommendations?look=natural&skin_tone=medium&limit=8
   "latencyMs": 420
 ```
 
-## 5.5 Endpoint sugerido: catálogo
+## 5.5 Catálogo, navegación y búsqueda (Clase → Categoría → Producto)
 
-**`GET /v1/products`** con paginación y filtros server-side (el cliente hoy filtra en memoria).
+Implementado en `backend/api/src/routes/{classes,products,adminClasses,adminCategories}.ts`.
+Modelo conceptual: una **Clase** (Ojos, Rostro, Labios, Skincare, Tintes — nivel del
+menú deslizable) agrupa **Categorías** (Sombra de ojos, Primer... — nivel de la
+tira horizontal), y cada **Producto** pertenece opcionalmente a una Categoría.
+Administrable desde el panel admin (Lumina, externo a este repo) vía los
+endpoints `/v1/admin/classes` y `/v1/admin/categories`.
 
-Query params típicos: `q`, `category`, `maxPrice`, `page`, `pageSize`.
+**`GET /v1/classes`** — clases activas, para el menú deslizable.
+
+```json
+{ "items": [{ "id": "class_ojos", "name": "Ojos", "slug": "ojos", "icon": "👁️", "displayOrder": 10 }] }
+```
+
+**`GET /v1/classes/:classSlug/categories`** — categorías de una clase, para la
+tira horizontal. Siempre antepone una pestaña **sintética** `mas-vendidos`
+(`isSynthetic: true`, no es una fila real — ver `lib/catalogTaxonomy.ts`).
+
+```json
+{
+  "class": { "id": "class_ojos", "name": "Ojos", "slug": "ojos", "icon": "👁️", "displayOrder": 10 },
+  "items": [
+    { "id": null, "name": "Más vendidos", "slug": "mas-vendidos", "displayOrder": -1, "isSynthetic": true },
+    { "id": "cat_ojos_sombra", "name": "Sombra de ojos", "slug": "sombra-de-ojos", "displayOrder": 10, "isSynthetic": false }
+  ]
+}
+```
+
+**`GET /v1/products`** — paginado y filtrado en servidor (el cliente ya NO trae
+todo el catálogo a memoria para este flujo, ver `frontend/src/catalogTaxonomy.ts`).
+
+Query params: `q`, `category` (legado, string libre), `classSlug`, `categorySlug`
+(usar `mas-vendidos` para bestsellers), `maxPrice`, `page`, `pageSize` (máx. 100).
+Cada producto de la respuesta incluye `taxonomy` (`null` si es un producto legado
+sin categoría asignada todavía):
+
+```json
+{
+  "items": [{
+    "id": "…", "name": "…", "category": "Ojos",
+    "taxonomy": {
+      "classId": "class_ojos", "classSlug": "ojos", "className": "Ojos",
+      "categoryId": "cat_ojos_sombra", "categorySlug": "sombra-de-ojos", "categoryName": "Sombra de ojos"
+    }
+  }],
+  "page": 1, "pageSize": 24, "total": 137
+}
+```
+
+**Endpoints admin** (`X-Admin-Token`, mismo mecanismo que `/v1/admin/products`):
+`GET/POST /v1/admin/classes`, `PATCH /v1/admin/classes/:id`,
+`PATCH /v1/admin/classes/reorder`, `DELETE /v1/admin/classes/:id` (solo si no
+tiene categorías); `GET/POST /v1/admin/classes/:classId/categories`,
+`PATCH /v1/admin/categories/:id`, `PATCH /v1/admin/categories/reorder`,
+`DELETE /v1/admin/categories/:id` (solo si no tiene productos asignados).
+`POST/PATCH /v1/admin/products` acepta `catalogCategoryId` para asignar la
+categoría de un producto (además del `category` string legado, que se
+mantiene por compatibilidad).
 
 ## 5.6 Endpoint sugerido: checkout
 
